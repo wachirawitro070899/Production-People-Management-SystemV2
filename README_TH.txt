@@ -1,11 +1,7 @@
-Production People Management System V201 - GitHub Pages Fixed
-
-แก้ไข:
-- กำหนด Base URL สำหรับ GitHub Pages repository
-- แก้เส้นทาง CSS และ JavaScript ให้โหลดจาก /Production-People-Management-System/
-- ใช้งานกับ Settings > Pages: main / (root)
-
-วิธีอัปโหลด:
-1. ลบไฟล์เก่าใน Repository หรืออัปโหลดไฟล์ชุดนี้ทับ
-2. ต้องให้ index.html, .nojekyll และโฟลเดอร์ assets อยู่ที่หน้าแรกของ Repository
-3. รอ Actions Deploy สำเร็จ แล้วกด Ctrl+F5
+Production People Management System V300 Stable
+- ข้อมูลพนักงานเดิมฝังในระบบ
+- แก้ไข/เพิ่ม/ลบ เก็บใน LocalStorage
+- Admin password เริ่มต้น: 1234
+- ดาวน์โหลด CSV/JSON ได้โดยไม่ใช้ CDN
+- พิมพ์หรือบันทึก PDF ผ่านปุ่มพิมพ์
+- อัปโหลดไฟล์ทั้งหมดในโฟลเดอร์ขึ้น GitHub Pages root
