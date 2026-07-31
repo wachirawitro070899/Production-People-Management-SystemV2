@@ -355,3 +355,12 @@ select:disabled{opacity:.65!important;cursor:not-allowed!important}
 .hierarchy-org-branches .org-mini-card.other{background:#edf1f5;border-color:#cbd5df;border-bottom-color:#64748b}
 .hierarchy-org-branches .org-mini-id{font-size:7px;font-weight:700;color:#60758d}
 @media(max-width:900px){.hierarchy-org-canvas{min-width:0;width:100%}.hierarchy-org-branches{display:grid;grid-template-columns:1fr}.hierarchy-org-branches .org-hierarchy-section{width:auto;flex-basis:auto}.hierarchy-org-branches:before,.hierarchy-org-branches .org-hierarchy-section:before{display:none}}
+
+/* V207 employee editor */
+.employee-edit-btn{padding:7px 12px;font-size:12px;white-space:nowrap}
+.v207-modal{position:fixed;inset:0;background:rgba(15,23,42,.62);display:none;align-items:center;justify-content:center;z-index:99999;padding:20px}
+.v207-modal.show{display:flex}.v207-modal-card{width:min(760px,96vw);max-height:92vh;overflow:auto;background:#fff;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.3);padding:20px}
+.v207-modal-head{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #dbe4ef;margin-bottom:16px}.v207-modal-head h3{margin:0 0 12px}.v207-close{border:0;background:transparent;font-size:30px;cursor:pointer;color:#475569}
+.v207-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.v207-grid label{display:flex;flex-direction:column;gap:6px;font-weight:700;font-size:13px}.v207-grid input,.v207-grid select{width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:8px;font:inherit}.v207-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:18px}
+@media(max-width:700px){.v207-grid{grid-template-columns:1fr}}
+@media print{#search .panel:first-child,.employee-edit-btn,th:last-child,td:last-child{display:none!important}}
