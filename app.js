@@ -2008,43 +2008,50 @@ function employeeStorageKey(emp,key=''){
 }
 // Always show the Excel employee list immediately. Firebase is optional enhancement only.
 employees=mergeEmployeeSeed([]);
-if(configured){
+// Load embedded and locally saved data immediately so every page can render without waiting for Firebase.
+try{
+ const local=JSON.parse(localStorage.getItem('productionEmployees')||'[]');
+ employees=mergeEmployeeSeed(local);
+ localStorage.setItem('productionEmployees',JSON.stringify(employees));
+ skillAssessments=JSON.parse(localStorage.getItem('skillAssessments')||'[]');
+ onlineExamRecords=JSON.parse(localStorage.getItem('onlineExamRecords')||'[]');
+ examAssignments=JSON.parse(localStorage.getItem('examAssignments')||'[]');
+}catch(localErr){
+ console.warn('Local cache unavailable; using embedded data.',localErr);
+ employees=mergeEmployeeSeed([]);
+}
+
+// Connect Firebase after the full application has initialized. This prevents a slow/blocked CDN
+// from leaving employee tables and other pages blank on GitHub Pages.
+async function connectFirebaseDeferred(){
+ if(!configured)return;
  try{
-  const appMod=await import('https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js');
-  const authMod=await import('https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js');
-  const fsMod=await import('https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js');
+  const [appMod,authMod,fsMod]=await Promise.all([
+   import('https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js'),
+   import('https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js'),
+   import('https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js')
+  ]);
   const app=appMod.initializeApp(firebaseConfig);auth=authMod.getAuth(app);db=fsMod.getFirestore(app);api={...authMod,...fsMod};
   api.onAuthStateChanged(auth,user=>{isAdmin=!!user;updateAuthUI(user);setTimeout(()=>{try{renderAll()}catch(err){console.error('Auth render failed:',err)}},0);});
-  api.onSnapshot(api.collection(db,'employees'),snap=>{const cloud=snap.docs.map(d=>({docId:d.id,...d.data()}));employees=mergeEmployeeSeed(cloud);setTimeout(()=>{try{renderAll()}catch(err){console.error('Employee render failed:',err)}},0);},err=>{console.error('Employee read failed:',err);employees=mergeEmployeeSeed([]);setTimeout(()=>{try{renderAll()}catch(renderErr){console.error('Employee fallback render failed:',renderErr)}},0);});
-  api.onSnapshot(api.collection(db,'skillAssessments'),snap=>{skillAssessments=snap.docs.map(d=>({docId:d.id,...d.data()}));renderSkillAssessments();},err=>console.error(err));
+  api.onSnapshot(api.collection(db,'employees'),snap=>{const cloud=snap.docs.map(d=>({docId:d.id,...d.data()}));employees=mergeEmployeeSeed(cloud);localStorage.setItem('productionEmployees',JSON.stringify(employees));setTimeout(()=>{try{renderAll()}catch(err){console.error('Employee render failed:',err)}},0);},err=>{console.error('Employee read failed:',err);setTimeout(()=>{try{renderAll()}catch(renderErr){console.error('Employee fallback render failed:',renderErr)}},0);});
+  api.onSnapshot(api.collection(db,'skillAssessments'),snap=>{skillAssessments=snap.docs.map(d=>({docId:d.id,...d.data()}));localStorage.setItem('skillAssessments',JSON.stringify(skillAssessments));renderSkillAssessments();},err=>console.error(err));
   api.onSnapshot(api.collection(db,'onlineExamRecords'),snap=>{
     const cloud=snap.docs.map(d=>({docId:d.id,...d.data()}));
     const local=JSON.parse(localStorage.getItem('onlineExamRecords')||'[]');
     const merged=new Map();
-    [...cloud,...local].forEach(x=>{
-      const key=[String(x.employeeId||x.employeeDocId||'').trim().toLowerCase(),String(x.quarter||x.examSet||'').trim().toUpperCase(),String(x.submittedAt||x.createdAt||x.date||'')].join('::');
-      if(!merged.has(key)||x.docId)merged.set(key,x);
-    });
-    onlineExamRecords=[...merged.values()];
-    localStorage.setItem('onlineExamRecords',JSON.stringify(onlineExamRecords));
-    renderOnlineExamHistory();
-    try{refreshExamLock();}catch(e){console.warn('Exam lock refresh:',e)}
-  },err=>{
-    console.error(err);
-    onlineExamRecords=JSON.parse(localStorage.getItem('onlineExamRecords')||'[]');
-    renderOnlineExamHistory();
-    try{refreshExamLock();}catch(e){}
-  });
-  api.onSnapshot(api.collection(db,'examAssignments'),snap=>{examAssignments=snap.docs.map(d=>({docId:d.id,...d.data()}));renderExamApprovals();},err=>console.error(err));
+    [...cloud,...local].forEach(x=>{const key=[String(x.employeeId||x.employeeDocId||'').trim().toLowerCase(),String(x.quarter||x.examSet||'').trim().toUpperCase(),String(x.submittedAt||x.createdAt||x.date||'')].join('::');if(!merged.has(key)||x.docId)merged.set(key,x);});
+    onlineExamRecords=[...merged.values()];localStorage.setItem('onlineExamRecords',JSON.stringify(onlineExamRecords));renderOnlineExamHistory();try{refreshExamLock()}catch(e){}
+  },err=>{console.error(err);renderOnlineExamHistory();try{refreshExamLock()}catch(e){}});
+  api.onSnapshot(api.collection(db,'examAssignments'),snap=>{examAssignments=snap.docs.map(d=>({docId:d.id,...d.data()}));localStorage.setItem('examAssignments',JSON.stringify(examAssignments));renderExamApprovals();},err=>console.error(err));
  }catch(err){
-  console.error('Firebase unavailable; using embedded employee data.',err);
-  document.getElementById('configNotice').classList.remove('hidden');
-  document.getElementById('configNotice').textContent='กำลังใช้ข้อมูลพนักงานที่ฝังอยู่ในเว็บ เนื่องจากเชื่อมต่อ Firebase ไม่สำเร็จ';
+  console.error('Firebase unavailable; continuing with embedded/local data.',err);
+  const notice=document.getElementById('configNotice');
+  if(notice){notice.classList.remove('hidden');notice.textContent='กำลังใช้ข้อมูลพนักงานในเครื่อง เนื่องจากเชื่อมต่อ Firebase ไม่สำเร็จ';}
+  setTimeout(()=>{try{renderAll()}catch(e){}},0);
  }
-}else{
- document.getElementById('configNotice').classList.remove('hidden');
- const local=JSON.parse(localStorage.getItem('productionEmployees')||'[]');employees=mergeEmployeeSeed(local);localStorage.setItem('productionEmployees',JSON.stringify(employees));skillAssessments=JSON.parse(localStorage.getItem('skillAssessments')||'[]');onlineExamRecords=JSON.parse(localStorage.getItem('onlineExamRecords')||'[]');examAssignments=JSON.parse(localStorage.getItem('examAssignments')||'[]');setTimeout(()=>{try{renderAll()}catch(err){console.error('Initial render failed:',err)}},0);
 }
+setTimeout(connectFirebaseDeferred,50);
+
 async function importEmployeeSeedData(){
  const status=document.getElementById('employeeImportStatus');
  if(!isAdmin){alert('กรุณา Login เป็น Admin ก่อนอัปโหลดรายชื่อ');return;}
@@ -2098,8 +2105,8 @@ const printExamSkillBtnEl=document.getElementById('printExamSkillBtn');if(printE
 function yearsService(dateStr){if(!dateStr)return'-';const s=new Date(dateStr+'T00:00:00'),n=new Date();let y=n.getFullYear()-s.getFullYear(),m=n.getMonth()-s.getMonth();if(n.getDate()<s.getDate())m--;if(m<0){y--;m+=12}return `${Math.max(0,y)} ปี ${Math.max(0,m)} เดือน`;}
 function fmt(d){if(!d)return'-';return new Date(d+'T00:00:00').toLocaleDateString('th-TH');}
 function updateAuthUI(user){document.getElementById('loginBtn').classList.toggle('hidden',!!user);document.getElementById('logoutBtn').classList.toggle('hidden',!user);document.getElementById('userBadge').textContent=user?user.email:'Public Viewer';document.getElementById('roleText').textContent=user?'Admin':'Viewer';document.querySelectorAll('.admin-only,.admin-col').forEach(e=>e.classList.toggle('hidden',!user));}
-document.getElementById('loginBtn').onclick=()=>document.getElementById('loginModal').classList.add('show');document.getElementById('cancelLogin').onclick=()=>document.getElementById('loginModal').classList.remove('show');document.getElementById('logoutBtn').onclick=()=>api.signOut(auth);
-document.getElementById('submitLogin').onclick=async()=>{if(!configured){document.getElementById('loginError').textContent='กรุณาตั้งค่า Firebase ก่อน';return}try{await api.signInWithEmailAndPassword(auth,document.getElementById('loginEmail').value,document.getElementById('loginPassword').value);document.getElementById('loginModal').classList.remove('show');document.getElementById('loginError').textContent='';}catch(e){console.error('Login failed:',e);const code=String(e?.code||'');let msg='เข้าสู่ระบบไม่สำเร็จ';if(code.includes('invalid-credential')||code.includes('wrong-password')||code.includes('user-not-found'))msg='อีเมลหรือรหัสผ่านไม่ถูกต้อง';else if(code.includes('too-many-requests'))msg='พยายามเข้าสู่ระบบหลายครั้งเกินไป กรุณารอสักครู่';else if(code.includes('network-request-failed'))msg='เชื่อมต่ออินเทอร์เน็ตหรือ Firebase ไม่สำเร็จ';else if(code.includes('unauthorized-domain'))msg='โดเมนเว็บไซต์นี้ยังไม่ได้รับอนุญาตใน Firebase Authentication';else if(e?.message)msg='เข้าสู่ระบบไม่สำเร็จ: '+e.message;document.getElementById('loginError').textContent=msg;}};
+document.getElementById('loginBtn').onclick=()=>document.getElementById('loginModal').classList.add('show');document.getElementById('cancelLogin').onclick=()=>document.getElementById('loginModal').classList.remove('show');document.getElementById('logoutBtn').onclick=()=>{if(api&&api.signOut&&auth)api.signOut(auth);else alert('Firebase ยังเชื่อมต่อไม่พร้อม กรุณารอสักครู่แล้วลองใหม่');};
+document.getElementById('submitLogin').onclick=async()=>{if(!configured||!api.signInWithEmailAndPassword||!auth){document.getElementById('loginError').textContent='กรุณาตั้งค่า Firebase ก่อน';return}try{await api.signInWithEmailAndPassword(auth,document.getElementById('loginEmail').value,document.getElementById('loginPassword').value);document.getElementById('loginModal').classList.remove('show');document.getElementById('loginError').textContent='';}catch(e){console.error('Login failed:',e);const code=String(e?.code||'');let msg='เข้าสู่ระบบไม่สำเร็จ';if(code.includes('invalid-credential')||code.includes('wrong-password')||code.includes('user-not-found'))msg='อีเมลหรือรหัสผ่านไม่ถูกต้อง';else if(code.includes('too-many-requests'))msg='พยายามเข้าสู่ระบบหลายครั้งเกินไป กรุณารอสักครู่';else if(code.includes('network-request-failed'))msg='เชื่อมต่ออินเทอร์เน็ตหรือ Firebase ไม่สำเร็จ';else if(code.includes('unauthorized-domain'))msg='โดเมนเว็บไซต์นี้ยังไม่ได้รับอนุญาตใน Firebase Authentication';else if(e?.message)msg='เข้าสู่ระบบไม่สำเร็จ: '+e.message;document.getElementById('loginError').textContent=msg;}};
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{if(b.classList.contains('hidden'))return;document.querySelectorAll('nav button').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));b.classList.add('active');document.getElementById(b.dataset.page).classList.add('active');});
 const secSel=document.getElementById('empSection'),posSel=document.getElementById('empPosition'),filter=document.getElementById('sectionFilter'),chartFilter=document.getElementById('chartSectionFilter'),chartPositionFilter=document.getElementById('chartPositionFilter'),chartSortBy=document.getElementById('chartSortBy'),chartSortOrder=document.getElementById('chartSortOrder'),chartSearchInput=document.getElementById('chartSearchInput'),editSecSel=document.getElementById('editEmpSection'),editPosSel=document.getElementById('editEmpPosition');Object.keys(structures).forEach(sectionName=>{secSel.add(new Option(sectionName,sectionName));filter.add(new Option(sectionName,sectionName));chartFilter.add(new Option(sectionName,sectionName));editSecSel.add(new Option(sectionName,sectionName));});function updatePos(){posSel.innerHTML='';(structures[secSel.value]||[]).forEach(p=>posSel.add(new Option(p,p)));}function updateEditPos(selected=''){editPosSel.innerHTML='';(structures[editSecSel.value]||[]).forEach(p=>editPosSel.add(new Option(p,p)));if(selected&&[...editPosSel.options].some(o=>o.value===selected))editPosSel.value=selected;}function updateChartPositions(){chartPositionFilter.innerHTML='<option value="all">ทุกตำแหน่ง</option>';const group=employees.filter(e=>normalizedSection(e.section)===normalizedSection(chartFilter.value));sectionPositions(chartFilter.value,group).forEach(p=>chartPositionFilter.add(new Option(p,p)));}secSel.onchange=updatePos;editSecSel.onchange=()=>updateEditPos();updatePos();updateEditPos();filter.onchange=()=>renderSection(filter.value);chartFilter.value='Stamping Section';updateChartPositions();chartFilter.onchange=()=>{updateChartPositions();renderSectionChart(chartFilter.value)};[chartPositionFilter,chartSortBy,chartSortOrder].forEach(el=>el.onchange=()=>renderSectionChart(chartFilter.value));chartSearchInput.oninput=()=>renderSectionChart(chartFilter.value);
 
